@@ -1,0 +1,27 @@
+# build
+build/
+.gradle/
+out/
+bin/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# env & secrets
+.env
+*.env
+!.env.example
+
+# logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# local notes（本地笔记，不推送到 GitHub）
+docs/
+START-HERE.md
