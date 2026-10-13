@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: pr-reviewer
+  # .env 为 key=value 格式，可直接按 properties 导入（文件缺失时静默跳过）
+  config:
+    import: optional:file:.env[.properties]
+
+github:
+  token: ${GITHUB_TOKEN:}
+  api-base-url: https://api.github.com
