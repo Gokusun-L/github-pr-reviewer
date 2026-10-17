@@ -1,4 +1,5 @@
 # build
+target/
 build/
 .gradle/
 out/
@@ -25,3 +26,4 @@ Thumbs.db
 # local notes（本地笔记，不推送到 GitHub）
 docs/
 AGENTS.md
+.workbuddy/
