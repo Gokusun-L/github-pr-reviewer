@@ -14,7 +14,7 @@ services:
     environment:
       POSTGRES_DB: prreviewer
       POSTGRES_USER: prreviewer
-      POSTGRES_PASSWORD: prreviewer
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
