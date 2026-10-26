@@ -1,0 +1,94 @@
+diff --git a/src/main/java/com/gokusun/prreviewer/PrReviewerApplication.java b/src/main/java/com/gokusun/prreviewer/PrReviewerApplication.java
+index 726a6cf..95da3cb 100644
+--- a/src/main/java/com/gokusun/prreviewer/PrReviewerApplication.java
++++ b/src/main/java/com/gokusun/prreviewer/PrReviewerApplication.java
+@@ -1,9 +1,12 @@
+ package com.gokusun.prreviewer;
+ 
++import com.gokusun.prreviewer.github.GitHubProperties;
+ import org.springframework.boot.SpringApplication;
+ import org.springframework.boot.autoconfigure.SpringBootApplication;
++import org.springframework.boot.context.properties.EnableConfigurationProperties;
+ 
+ @SpringBootApplication
++@EnableConfigurationProperties(GitHubProperties.class)
+ public class PrReviewerApplication {
+ 
+   public static void main(String[] args) {
+diff --git a/src/main/java/com/gokusun/prreviewer/github/GitHubClient.java b/src/main/java/com/gokusun/prreviewer/github/GitHubClient.java
+new file mode 100644
+index 0000000..afe1ff1
+--- /dev/null
++++ b/src/main/java/com/gokusun/prreviewer/github/GitHubClient.java
+@@ -0,0 +1,37 @@
++package com.gokusun.prreviewer.github;
++
++import org.springframework.boot.ApplicationArguments;
++import org.springframework.boot.ApplicationRunner;
++import org.springframework.stereotype.Component;
++import org.springframework.web.client.RestClient;
++
++@Component
++public class GitHubClient implements ApplicationRunner {
++
++  private final GitHubProperties props;
++  private final RestClient http;
++
++  public GitHubClient(GitHubProperties props) {
++    this.props = props;
++    this.http =
++        RestClient.builder()
++            .baseUrl("https://api.github.com")
++            .defaultHeader("Accept", "application/vnd.github.v3.diff")
++            .build();
++  }
++
++  @Override
++  public void run(ApplicationArguments args) {
++    String diff = pullDiff("Gokusun-L", "github-pr-reviewer", 1);
++    System.out.println("=== diff chars = " + diff.length() + " ===");
++    System.out.println(diff);
++  }
++
++  public String pullDiff(String owner, String repo, int number) {
++    return http.get()
++        .uri("/repos/{owner}/{repo}/pulls/{number}", owner, repo, number)
++        .header("Authorization", "Bearer " + props.getToken())
++        .retrieve()
++        .body(String.class);
++  }
++}
+diff --git a/src/main/java/com/gokusun/prreviewer/github/GitHubProperties.java b/src/main/java/com/gokusun/prreviewer/github/GitHubProperties.java
+new file mode 100644
+index 0000000..91966fb
+--- /dev/null
++++ b/src/main/java/com/gokusun/prreviewer/github/GitHubProperties.java
+@@ -0,0 +1,28 @@
++package com.gokusun.prreviewer.github;
++
++import jakarta.annotation.PostConstruct;
++import org.springframework.boot.context.properties.ConfigurationProperties;
++
++@ConfigurationProperties(prefix = "github")
++public class GitHubProperties {
++
++  private String token;
++
++  public String getToken() {
++    return token;
++  }
++
++  public void setToken(String token) {
++    this.token = token;
++  }
++
++  @PostConstruct
++  void validate() {
++    if (token == null || token.isBlank()) {
++      throw new IllegalStateException("github.token 未配置，检查仓库根 .env 的 GITHUB_TOKEN");
++    }
++    if (token.length() == 15 || token.startsWith("${")) {
++      throw new IllegalStateException("github.token 是未解析的占位符，检查 .env 是否被加载");
++    }
++  }
++}

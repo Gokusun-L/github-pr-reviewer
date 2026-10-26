@@ -1,0 +1,28 @@
+diff --git a/src/main/java/demo/Calculator.java b/src/main/java/demo/Calculator.java
+index 808ab2f..16a0b50 100644
+--- a/src/main/java/demo/Calculator.java
++++ b/src/main/java/demo/Calculator.java
+@@ -1,8 +1,15 @@
+-package demo;
+-
+-public class Calculator {
+-
+-  public int add(int a, int b) {
+-    return a + b;
+-  }
++package demo;
++
++public class Calculator {
++
++  private static final String API_KEY = "sk-demo-1234567890abcdef";
++
++  public int add(int a, int b) {
++    return a + b;
++  }
++
++  public int divide(int a, int b) {
++    // TODO: 处理除零
++    return a / b;
++  }
+ }
+\ No newline at end of file

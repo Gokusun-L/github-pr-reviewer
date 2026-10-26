@@ -21,7 +21,7 @@ public class GitHubProperties {
     if (token == null || token.isBlank()) {
       throw new IllegalStateException("github.token 未配置，检查仓库根 .env 的 GITHUB_TOKEN");
     }
-    if (token.length() == 15 || token.startsWith("${")) {
+    if (token.startsWith("${")) {
       throw new IllegalStateException("github.token 是未解析的占位符，检查 .env 是否被加载");
     }
   }
