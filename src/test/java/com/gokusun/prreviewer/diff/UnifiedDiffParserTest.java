@@ -1,6 +1,8 @@
 package com.gokusun.prreviewer.diff;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -8,6 +10,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class UnifiedDiffParserTest {
 
@@ -16,6 +20,7 @@ class UnifiedDiffParserTest {
     List<DiffFile> files = new UnifiedDiffParser().parse(read("pr1.diff"));
 
     assertEquals(1, files.size());
+    assertEquals(FileKind.MODIFIED, files.get(0).kind());
     assertEquals(1, files.get(0).hunks().size());
 
     Hunk hunk = files.get(0).hunks().get(0);
@@ -34,8 +39,10 @@ class UnifiedDiffParserTest {
     List<DiffFile> files = new UnifiedDiffParser().parse(read("multi-file.diff"));
 
     assertEquals(3, files.size());
-    assertTrue(files.get(1).oldPath().contains("/dev/null"));
+    assertEquals(FileKind.ADDED, files.get(1).kind());
+    assertNull(files.get(1).oldPath());
     assertEquals(0, files.get(1).hunks().get(0).oldCount());
+    assertEquals(FileKind.ADDED, files.get(2).kind());
     assertEquals(0, files.get(2).hunks().get(0).oldCount());
   }
 
@@ -48,6 +55,45 @@ class UnifiedDiffParserTest {
         files.get(0).newPath());
     assertEquals(
         "src/main/java/com/gokusun/prreviewer/github/GitHubClient.java", files.get(1).newPath());
+  }
+
+  @Test
+  void binaryFileKeepsPathAndHasNoHunks() throws IOException {
+    List<DiffFile> files = new UnifiedDiffParser().parse(read("binary.diff"));
+
+    assertEquals(1, files.size());
+    assertEquals(FileKind.ADDED, files.get(0).kind());
+    assertEquals("logo.png", files.get(0).newPath());
+    assertTrue(files.get(0).hunks().isEmpty());
+  }
+
+  @Test
+  void quotedPathIsDecoded() throws IOException {
+    List<DiffFile> files = new UnifiedDiffParser().parse(read("quoted-path.diff"));
+
+    assertEquals(1, files.size());
+    assertEquals(FileKind.ADDED, files.get(0).kind());
+    assertNull(files.get(0).oldPath());
+    assertEquals("中文.java", files.get(0).newPath());
+    assertEquals(1, count(files.get(0).hunks().get(0), LineType.ADDED));
+  }
+
+  @Test
+  void renameOnlyProducesRenamedWithBothPaths() throws IOException {
+    List<DiffFile> files = new UnifiedDiffParser().parse(read("rename-only.diff"));
+
+    assertEquals(1, files.size());
+    assertEquals(FileKind.RENAMED, files.get(0).kind());
+    assertEquals("keep.txt", files.get(0).oldPath());
+    assertEquals("renamed.txt", files.get(0).newPath());
+    assertTrue(files.get(0).hunks().isEmpty());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"pr1.diff", "multi-file.diff", "binary.diff", "quoted-path.diff", "rename-only.diff"})
+  void everySampleParsesWithoutException(String sample) throws IOException {
+    String text = read(sample);
+    assertDoesNotThrow(() -> new UnifiedDiffParser().parse(text));
   }
 
   private static long count(Hunk hunk, LineType type) {
