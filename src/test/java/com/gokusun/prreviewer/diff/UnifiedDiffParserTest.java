@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -218,6 +219,58 @@ class UnifiedDiffParserTest {
   void everySampleParsesWithoutException(String sample) throws IOException {
     String text = read(sample);
     assertDoesNotThrow(() -> new UnifiedDiffParser().parse(text));
+  }
+
+  @Test
+  void hunkIsSnapshotOfConstructorArgument() {
+    List<DiffLine> mine = new ArrayList<>();
+    mine.add(new DiffLine(LineType.CONTEXT, "kept"));
+    Hunk hunk = new Hunk(1, 1, 1, 1, mine);
+
+    mine.add(new DiffLine(LineType.ADDED, "injected"));
+
+    assertEquals(1, hunk.lines().size(), "构造后改入参集合，不得影响 Hunk 内部");
+  }
+
+  @Test
+  void hunkRejectsWriteThroughAccessor() {
+    List<DiffLine> mine = new ArrayList<>();
+    mine.add(new DiffLine(LineType.CONTEXT, "kept"));
+    Hunk hunk = new Hunk(1, 1, 1, 1, mine);
+
+    try {
+      hunk.lines().add(new DiffLine(LineType.ADDED, "injected"));
+    } catch (UnsupportedOperationException expected) {
+      // 允许以抛异常的方式拒绝写入；也允许"写不进去且不抛"。判的是结果，不是手段。
+    }
+
+    assertEquals(1, hunk.lines().size(), "通过访问器写入不得改变 Hunk 的可观测状态");
+  }
+
+  @Test
+  void diffFileIsSnapshotOfConstructorArgument() {
+    List<Hunk> mine = new ArrayList<>();
+    mine.add(new Hunk(1, 1, 1, 1, List.of(new DiffLine(LineType.CONTEXT, "kept"))));
+    DiffFile file = new DiffFile("a.java", "a.java", FileKind.MODIFIED, mine);
+
+    mine.add(new Hunk(0, 0, 1, 1, List.of()));
+
+    assertEquals(1, file.hunks().size(), "构造后改入参集合，不得影响 DiffFile 内部");
+  }
+
+  @Test
+  void diffFileRejectsWriteThroughAccessor() {
+    List<Hunk> mine = new ArrayList<>();
+    mine.add(new Hunk(1, 1, 1, 1, List.of(new DiffLine(LineType.CONTEXT, "kept"))));
+    DiffFile file = new DiffFile("a.java", "a.java", FileKind.MODIFIED, mine);
+
+    try {
+      file.hunks().add(new Hunk(0, 0, 1, 1, List.of()));
+    } catch (UnsupportedOperationException expected) {
+      // 同上
+    }
+
+    assertEquals(1, file.hunks().size(), "通过访问器写入不得改变 DiffFile 的可观测状态");
   }
 
   private static int countCr(String text) {

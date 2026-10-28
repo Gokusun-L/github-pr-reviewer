@@ -7,6 +7,10 @@ import java.util.List;
  */
 public record DiffFile(String oldPath, String newPath, FileKind kind, List<Hunk> hunks) {
 
+  public DiffFile {
+    hunks = List.copyOf(hunks);
+  }
+
   /**
    * 用于展示的路径，永不返回 null。
    *
