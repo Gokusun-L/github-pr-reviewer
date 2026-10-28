@@ -34,8 +34,7 @@ public class UnifiedDiffParser {
     List<Hunk> hunks = new ArrayList<>();
     HunkDraft draft = null;
 
-    for (String raw : diffText.split("\n")) {
-      String line = stripTrailingCr(raw);
+    for (String line : diffText.split("\n")) {
       if (line.isEmpty()) {
         continue;
       }
@@ -140,10 +139,6 @@ public class UnifiedDiffParser {
       return FileKind.DELETED;
     }
     return FileKind.MODIFIED;
-  }
-
-  private static String stripTrailingCr(String line) {
-    return line.endsWith("\r") ? line.substring(0, line.length() - 1) : line;
   }
 
   private static String[] pathsFromDiffGit(String rest) {
