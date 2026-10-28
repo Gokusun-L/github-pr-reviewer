@@ -1,6 +1,7 @@
 package com.gokusun.prreviewer.github;
 
 import com.gokusun.prreviewer.diff.DiffFile;
+import com.gokusun.prreviewer.diff.DiffLine;
 import com.gokusun.prreviewer.diff.Hunk;
 import com.gokusun.prreviewer.diff.LineType;
 import com.gokusun.prreviewer.diff.UnifiedDiffParser;
@@ -41,7 +42,7 @@ public class GitHubClient implements ApplicationRunner {
       System.out.println("  " + shortName + "  hunks=" + file.hunks().size());
       for (Hunk hunk : file.hunks()) {
         System.out.printf(
-            "    @@ -%d,%d +%d,%d @@  context=%d added=%d removed=%d noNewline=%d%n",
+            "    @@ -%d,%d +%d,%d @@  context=%d added=%d removed=%d noNewline=%s%n",
             hunk.oldStart(),
             hunk.oldCount(),
             hunk.newStart(),
@@ -49,7 +50,7 @@ public class GitHubClient implements ApplicationRunner {
             count(hunk, LineType.CONTEXT),
             count(hunk, LineType.ADDED),
             count(hunk, LineType.REMOVED),
-            count(hunk, LineType.NO_NEWLINE));
+            hunk.lines().stream().anyMatch(DiffLine::noNewline));
       }
     }
   }

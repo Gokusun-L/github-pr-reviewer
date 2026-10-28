@@ -106,6 +106,14 @@ public class UnifiedDiffParser {
         continue;
       }
 
+      if (line.charAt(0) == '\\') {
+        if (!draft.lines.isEmpty()) {
+          int last = draft.lines.size() - 1;
+          draft.lines.set(last, draft.lines.get(last).withNoNewline());
+        }
+        continue;
+      }
+
       LineType type = classify(line.charAt(0));
       if (type != null) {
         draft.lines.add(new DiffLine(type, line.substring(1)));
@@ -233,7 +241,6 @@ public class UnifiedDiffParser {
       case ' ' -> LineType.CONTEXT;
       case '+' -> LineType.ADDED;
       case '-' -> LineType.REMOVED;
-      case '\\' -> LineType.NO_NEWLINE;
       default -> null;
     };
   }

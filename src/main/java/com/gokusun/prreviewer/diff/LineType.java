@@ -4,6 +4,5 @@ package com.gokusun.prreviewer.diff;
 public enum LineType {
   CONTEXT,
   ADDED,
-  REMOVED,
-  NO_NEWLINE
+  REMOVED
 }

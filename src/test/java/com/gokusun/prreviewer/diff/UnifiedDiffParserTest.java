@@ -33,7 +33,19 @@ class UnifiedDiffParserTest {
     assertEquals(1, count(hunk, LineType.CONTEXT));
     assertEquals(14, count(hunk, LineType.ADDED));
     assertEquals(7, count(hunk, LineType.REMOVED));
-    assertEquals(1, count(hunk, LineType.NO_NEWLINE));
+    assertEquals(22, hunk.lines().size());
+  }
+
+  @Test
+  void noNewlineMarkerFoldsIntoPrecedingLine() throws IOException {
+    Hunk hunk = new UnifiedDiffParser().parse(read("pr1.diff")).get(0).hunks().get(0);
+
+    assertEquals(22, hunk.lines().size(), "标记行不得占用 lines 的一格");
+    assertEquals(14, count(hunk, LineType.ADDED));
+    assertEquals(7, count(hunk, LineType.REMOVED));
+    assertEquals(1, count(hunk, LineType.CONTEXT));
+    assertTrue(hunk.lines().get(21).noNewline(), "\\ No newline 应折叠为上一行的标志");
+    assertFalse(hunk.lines().get(20).noNewline(), "不得折叠到更前面的行");
   }
 
   @Test
