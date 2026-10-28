@@ -2,6 +2,8 @@ package com.gokusun.prreviewer.diff;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -104,12 +106,23 @@ class UnifiedDiffParserTest {
         "add-empty.diff",
         "quoted-path.diff"
       })
-  void dirtySamplesDoNotThrowOnDisplayName(String sample) throws IOException {
+  void displayNameIsNeverNullOrBlank(String sample) throws IOException {
     List<DiffFile> files = new UnifiedDiffParser().parse(read(sample));
 
     for (DiffFile file : files) {
-      assertDoesNotThrow(file::displayName);
+      String name = file.displayName();
+      assertNotNull(name, sample + " 里出现了 displayName() == null");
+      assertFalse(name.isBlank(), sample + " 里出现了空白 displayName");
     }
+  }
+
+  @Test
+  void truncatedDiffHeaderStillYieldsDisplayName() {
+    List<DiffFile> files = new UnifiedDiffParser().parse("diff --git ");
+
+    assertEquals(1, files.size());
+    assertNotNull(files.get(0).displayName());
+    assertFalse(files.get(0).displayName().isBlank());
   }
 
   @Test

@@ -7,7 +7,18 @@ import java.util.List;
  */
 public record DiffFile(String oldPath, String newPath, FileKind kind, List<Hunk> hunks) {
 
+  /**
+   * 用于展示的路径，永不返回 null。
+   *
+   * <p>只用于展示。回写 PR 评论的 path 必须取 API 的 {@code files[].filename}。
+   */
   public String displayName() {
-    return newPath == null ? oldPath : newPath;
+    if (newPath != null) {
+      return newPath;
+    }
+    if (oldPath != null) {
+      return oldPath;
+    }
+    return "(unknown)";
   }
 }
