@@ -1,1 +1,3 @@
+# 顺序有意义：git 对同一属性取最后一条匹配行，-text 必须在 text=auto 之后
+* text=auto
 src/test/resources/diffs/*.diff -text
