@@ -47,14 +47,69 @@ class UnifiedDiffParserTest {
   }
 
   @Test
-  void crlfAndLfProduceSamePaths() throws IOException {
-    List<DiffFile> files = new UnifiedDiffParser().parse(read("multi-file.diff"));
+  void crlfSampleAndLfSampleBothResolvePaths() throws IOException {
+    String crlfText = read("pr1.diff");
+    String lfText = read("multi-file.diff");
 
+    assertTrue(crlfText.contains("\r"), "pr1.diff 必须带 CR，否则 CRLF 分支等于没覆盖");
+    assertTrue(!lfText.contains("\r"), "multi-file.diff 必须是不带 CR 的 LF 样本");
+
+    List<DiffFile> crlfFiles = new UnifiedDiffParser().parse(crlfText);
+    List<DiffFile> lfFiles = new UnifiedDiffParser().parse(lfText);
+
+    assertEquals("src/main/java/demo/Calculator.java", crlfFiles.get(0).newPath());
     assertEquals(
         "src/main/java/com/gokusun/prreviewer/PrReviewerApplication.java",
-        files.get(0).newPath());
-    assertEquals(
-        "src/main/java/com/gokusun/prreviewer/github/GitHubClient.java", files.get(1).newPath());
+        lfFiles.get(0).newPath());
+  }
+
+  @Test
+  void modeOnlyChangeKeepsBothPathsWithoutHunks() throws IOException {
+    List<DiffFile> files = new UnifiedDiffParser().parse(read("mode-only.diff"));
+
+    assertEquals(1, files.size());
+    assertEquals(FileKind.MODIFIED, files.get(0).kind());
+    assertEquals("script.sh", files.get(0).oldPath());
+    assertEquals("script.sh", files.get(0).newPath());
+    assertTrue(files.get(0).hunks().isEmpty());
+  }
+
+  @Test
+  void deletedEmptyFileHasNullNewPath() throws IOException {
+    List<DiffFile> files = new UnifiedDiffParser().parse(read("delete-empty.diff"));
+
+    assertEquals(1, files.size());
+    assertEquals(FileKind.DELETED, files.get(0).kind());
+    assertEquals("empty.txt", files.get(0).oldPath());
+    assertNull(files.get(0).newPath());
+  }
+
+  @Test
+  void addedEmptyFileHasNullOrldPath() throws IOException {
+    List<DiffFile> files = new UnifiedDiffParser().parse(read("add-empty.diff"));
+
+    assertEquals(1, files.size());
+    assertEquals(FileKind.ADDED, files.get(0).kind());
+    assertNull(files.get(0).oldPath());
+    assertEquals("empty.txt", files.get(0).newPath());
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "binary.diff",
+        "rename-only.diff",
+        "mode-only.diff",
+        "delete-empty.diff",
+        "add-empty.diff",
+        "quoted-path.diff"
+      })
+  void dirtySamplesDoNotThrowOnDisplayName(String sample) throws IOException {
+    List<DiffFile> files = new UnifiedDiffParser().parse(read(sample));
+
+    for (DiffFile file : files) {
+      assertDoesNotThrow(file::displayName);
+    }
   }
 
   @Test
@@ -90,7 +145,17 @@ class UnifiedDiffParserTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"pr1.diff", "multi-file.diff", "binary.diff", "quoted-path.diff", "rename-only.diff"})
+  @ValueSource(
+      strings = {
+        "pr1.diff",
+        "multi-file.diff",
+        "binary.diff",
+        "quoted-path.diff",
+        "rename-only.diff",
+        "mode-only.diff",
+        "delete-empty.diff",
+        "add-empty.diff"
+      })
   void everySampleParsesWithoutException(String sample) throws IOException {
     String text = read(sample);
     assertDoesNotThrow(() -> new UnifiedDiffParser().parse(text));
