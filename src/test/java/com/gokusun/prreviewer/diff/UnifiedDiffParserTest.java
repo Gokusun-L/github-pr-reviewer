@@ -49,20 +49,55 @@ class UnifiedDiffParserTest {
   }
 
   @Test
-  void crlfSampleAndLfSampleBothResolvePaths() throws IOException {
-    String crlfText = read("pr1.diff");
+  void githubApiShapeCrlfAndLocalLfBothResolvePaths() throws IOException {
+    String mixedText = read("pr1.diff");
     String lfText = read("multi-file.diff");
 
-    assertTrue(crlfText.contains("\r"), "pr1.diff 必须带 CR，否则 CRLF 分支等于没覆盖");
-    assertTrue(!lfText.contains("\r"), "multi-file.diff 必须是不带 CR 的 LF 样本");
+    assertEquals(14, countCr(mixedText), "pr1.diff 必须恰好 14 个 CR");
+    assertEquals(0, countCr(lfText), "multi-file.diff 必须是纯 LF");
 
-    List<DiffFile> crlfFiles = new UnifiedDiffParser().parse(crlfText);
+    List<DiffFile> mixedFiles = new UnifiedDiffParser().parse(mixedText);
     List<DiffFile> lfFiles = new UnifiedDiffParser().parse(lfText);
 
-    assertEquals("src/main/java/demo/Calculator.java", crlfFiles.get(0).newPath());
+    assertEquals("src/main/java/demo/Calculator.java", mixedFiles.get(0).newPath());
     assertEquals(
         "src/main/java/com/gokusun/prreviewer/PrReviewerApplication.java",
         lfFiles.get(0).newPath());
+  }
+
+  @Test
+  void pureCrlfDiffParsesSameAsLfDiff() throws IOException {
+    String lfText = read("multi-file.diff");
+    String pureCrlf = lfText.replace("\n", "\r\n");
+
+    assertEquals(0, countBareLf(pureCrlf), "派生样本不得残留裸 LF");
+
+    List<DiffFile> lfFiles = new UnifiedDiffParser().parse(lfText);
+    List<DiffFile> crlfFiles = new UnifiedDiffParser().parse(pureCrlf);
+
+    assertEquals(lfFiles.size(), crlfFiles.size());
+    for (int i = 0; i < lfFiles.size(); i++) {
+      DiffFile left = lfFiles.get(i);
+      DiffFile right = crlfFiles.get(i);
+      assertEquals(left.oldPath(), right.oldPath(), "第 " + i + " 个文件 oldPath 不一致");
+      assertEquals(left.newPath(), right.newPath(), "第 " + i + " 个文件 newPath 不一致");
+      assertEquals(left.kind(), right.kind(), "第 " + i + " 个文件 kind 不一致");
+      assertEquals(left.hunks().size(), right.hunks().size(), "第 " + i + " 个文件 hunk 数不一致");
+
+      for (int j = 0; j < left.hunks().size(); j++) {
+        Hunk leftHunk = left.hunks().get(j);
+        Hunk rightHunk = right.hunks().get(j);
+        assertEquals(leftHunk.oldStart(), rightHunk.oldStart());
+        assertEquals(leftHunk.oldCount(), rightHunk.oldCount());
+        assertEquals(leftHunk.newStart(), rightHunk.newStart());
+        assertEquals(leftHunk.newCount(), rightHunk.newCount());
+        assertEquals(
+            leftHunk.lines().size(), rightHunk.lines().size(), "行数不一致：\\r 被当成了内容");
+        for (DiffLine line : rightHunk.lines()) {
+          assertFalse(line.content().endsWith("\r"), "纯 CRLF 样本里 \\r 不得残留在内容里");
+        }
+      }
+    }
   }
 
   @Test
@@ -172,6 +207,14 @@ class UnifiedDiffParserTest {
   void everySampleParsesWithoutException(String sample) throws IOException {
     String text = read(sample);
     assertDoesNotThrow(() -> new UnifiedDiffParser().parse(text));
+  }
+
+  private static int countCr(String text) {
+    return (int) text.chars().filter(c -> c == '\r').count();
+  }
+
+  private static int countBareLf(String text) {
+    return (int) text.replace("\r\n", "").chars().filter(c -> c == '\n').count();
   }
 
   private static long count(Hunk hunk, LineType type) {
