@@ -4,6 +4,14 @@ spring:
   config:
     # 把仓库根的 .env 按 properties 格式导入；文件缺失时不报错
     import: optional:file:.env[.properties]
+  ai:
+    openai:
+      base-url: https://api.deepseek.com
+      api-key: ${DEEPSEEK_API_KEY:}
+      chat:
+        options:
+          model: deepseek-flash
+          temperature: 0
 
 github:
   token: ${GITHUB_TOKEN:}
