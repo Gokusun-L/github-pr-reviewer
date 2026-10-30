@@ -105,8 +105,7 @@ class UnifiedDiffParserTest {
   void carriageReturnIsContentNotSeparator() throws IOException {
     Hunk hunk = new UnifiedDiffParser().parse(read("pr1.diff")).get(0).hunks().get(0);
 
-    long endingWithCr =
-        hunk.lines().stream().filter(line -> line.content().endsWith("\r")).count();
+    long endingWithCr = hunk.lines().stream().filter(line -> line.content().endsWith("\r")).count();
     assertEquals(14, endingWithCr, "14 个 + 行的内容末尾各有一个 \\r，剥掉就是吃掉内容");
     assertEquals("  }\r", hunk.lines().get(20).content(), "第 21 行内容必须与源文件逐字相同");
     assertEquals("}", hunk.lines().get(21).content(), "末行在文件里没有换行符，内容不含 \\r");
@@ -144,15 +143,14 @@ class UnifiedDiffParserTest {
   }
 
   @ParameterizedTest
-  @ValueSource(
-      strings = {
-        "binary.diff",
-        "rename-only.diff",
-        "mode-only.diff",
-        "delete-empty.diff",
-        "add-empty.diff",
-        "quoted-path.diff"
-      })
+  @ValueSource(strings = {
+      "binary.diff",
+      "rename-only.diff",
+      "mode-only.diff",
+      "delete-empty.diff",
+      "add-empty.diff",
+      "quoted-path.diff"
+  })
   void displayNameIsNeverNullOrBlank(String sample) throws IOException {
     List<DiffFile> files = new UnifiedDiffParser().parse(read(sample));
 
@@ -205,17 +203,16 @@ class UnifiedDiffParserTest {
   }
 
   @ParameterizedTest
-  @ValueSource(
-      strings = {
-        "pr1.diff",
-        "multi-file.diff",
-        "binary.diff",
-        "quoted-path.diff",
-        "rename-only.diff",
-        "mode-only.diff",
-        "delete-empty.diff",
-        "add-empty.diff"
-      })
+  @ValueSource(strings = {
+      "pr1.diff",
+      "multi-file.diff",
+      "binary.diff",
+      "quoted-path.diff",
+      "rename-only.diff",
+      "mode-only.diff",
+      "delete-empty.diff",
+      "add-empty.diff"
+  })
   void everySampleParsesWithoutException(String sample) throws IOException {
     String text = read(sample);
     assertDoesNotThrow(() -> new UnifiedDiffParser().parse(text));
@@ -271,6 +268,83 @@ class UnifiedDiffParserTest {
     }
 
     assertEquals(1, file.hunks().size(), "通过访问器写入不得改变 DiffFile 的可观测状态");
+  }
+
+  @Test
+  void pr1AnnotatedLinesCarryFileLineNumbers() throws IOException {
+    Hunk hunk = new UnifiedDiffParser().parse(read("pr1.diff")).get(0).hunks().get(0);
+    List<AnnotatedLine> rows = hunk.annotated();
+
+    assertEquals(22, rows.size());
+    assertEquals(1, rows.get(0).oldLine(), "首行是 REMOVED，旧号 1");
+    assertEquals(0, rows.get(0).newLine(), "REMOVED 行在新侧不存在");
+    assertEquals(7, rows.get(6).oldLine());
+    assertEquals(1, rows.get(7).newLine(), "第 8 行是第一条 ADDED，新号 1");
+    assertEquals(0, rows.get(7).oldLine(), "ADDED 行在旧侧不存在");
+    assertEquals(14, rows.get(20).newLine());
+    assertEquals(8, rows.get(21).oldLine(), "末行 CONTEXT，旧号 8 = 1+8-1");
+    assertEquals(15, rows.get(21).newLine(), "末行 CONTEXT，新号 15 = 1+15-1");
+    assertTrue(rows.get(21).line().noNewline(), "折叠标志要能在带号的行上读到");
+  }
+
+  @Test
+  void multiHunkOneInterleavesAddsAndContexts() throws IOException {
+    List<DiffFile> files = new UnifiedDiffParser().parse(read("multi-file.diff"));
+    List<AnnotatedLine> rows = files.get(0).hunks().get(0).annotated();
+
+    assertEquals(12, rows.size());
+    assertEquals(1, rows.get(0).oldLine());
+    assertEquals(1, rows.get(0).newLine());
+    assertEquals(0, rows.get(2).oldLine(), "第 3 行是 ADDED，旧侧不占号");
+    assertEquals(3, rows.get(2).newLine());
+    assertEquals(3, rows.get(3).oldLine(), "第 4 行 old 只到 3：前面只有 1 条 ADDED");
+    assertEquals(4, rows.get(3).newLine());
+    assertEquals(9, rows.get(11).oldLine());
+    assertEquals(12, rows.get(11).newLine());
+  }
+
+  @Test
+  void degenerateHunkKeepsOldSideAtZero() throws IOException {
+    List<DiffFile> files = new UnifiedDiffParser().parse(read("multi-file.diff"));
+
+    List<AnnotatedLine> second = files.get(1).hunks().get(0).annotated();
+    assertEquals(37, second.size());
+    assertTrue(second.stream().allMatch(row -> row.oldLine() == 0), "oldCount=0 时旧号恒为 0");
+    assertEquals(1, second.get(0).newLine());
+    assertEquals(37, second.get(36).newLine());
+
+    List<AnnotatedLine> third = files.get(2).hunks().get(0).annotated();
+    assertEquals(28, third.size());
+    assertTrue(third.stream().allMatch(row -> row.oldLine() == 0));
+    assertEquals(28, third.get(27).newLine());
+  }
+
+  @Test
+  void hunkLineCountsAreAnchored() throws IOException {
+    List<DiffFile> files = new UnifiedDiffParser().parse(read("multi-file.diff"));
+
+    assertEquals(12, files.get(0).hunks().get(0).lines().size(), "hunk1");
+    assertEquals(37, files.get(1).hunks().get(0).lines().size(), "hunk2");
+    assertEquals(28, files.get(2).hunks().get(0).lines().size(), "hunk3");
+  }
+
+  @Test
+  void lastLineSitsOnTheRangeBoundary() throws IOException {
+    List<DiffFile> files = new UnifiedDiffParser().parse(read("multi-file.diff"));
+    for (DiffFile file : files) {
+      for (Hunk hunk : file.hunks()) {
+        List<AnnotatedLine> rows = hunk.annotated();
+        AnnotatedLine last = rows.get(rows.size() - 1);
+        if (hunk.oldCount() > 0) {
+          assertEquals(hunk.oldStart() + hunk.oldCount() - 1, last.oldLine(), "旧侧末行守恒");
+        } else {
+          assertEquals(0, last.oldLine(), "oldCount=0 时末行旧号必须是 0，不是 -1");
+        }
+        if (hunk.newCount() > 0) {
+          assertEquals(hunk.newStart() + hunk.newCount() - 1, last.newLine(), "新侧末行守恒");
+        }
+      }
+    }
   }
 
   private static int countCr(String text) {
