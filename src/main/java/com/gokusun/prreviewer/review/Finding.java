@@ -7,12 +7,15 @@ package com.gokusun.prreviewer.review;
  * <p>{@code line} 的语义被契约钉死：<b>新文件真实行号</b>（GitHub 行内评论的 side=RIGHT）。
  * 这里没有 side 字段 —— 见设计要点 D2，坐标系统一为"新侧"，指错侧靠数值校验发现。
  *
+ * <p>{@code line} 为 null 表示模型没给这个字段，由 FindingValidator 判 MISSING_FIELD；
+ * 0 是"该侧不存在"的哨兵，判 ZERO_LINE。两者不许混用。
+ *
  * <p>本 record 不做任何校验：合法性需要 diff 知识，归 FindingValidator。
  * 这里抛异常会把拒绝理由逼成散落的异常文案，破坏"拒绝理由只有一个出口"。
  */
 public record Finding(
     String filePath,
-    int line,
+    Integer line,
     Severity severity,
     String message,
     String suggestion) {

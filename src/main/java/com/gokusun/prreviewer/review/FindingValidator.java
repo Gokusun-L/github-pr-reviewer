@@ -47,7 +47,8 @@ public final class FindingValidator {
   private FindingRejectReason reasonFor(List<DiffFile> files, Finding finding) {
     if (finding.severity() == null
         || finding.message() == null
-        || finding.message().isBlank()) {
+        || finding.message().isBlank()
+        || finding.line() == null) {
       return FindingRejectReason.MISSING_FIELD;
     }
 

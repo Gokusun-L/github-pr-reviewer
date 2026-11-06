@@ -86,6 +86,28 @@ class FindingValidatorTest {
   }
 
   @Test
+  void missingLineIsRejectedAsMissingField() throws IOException {
+    List<DiffFile> files = parse("pr1.diff");
+    var converter = ReviewJson.converter();
+
+    LlmReview missingLine =
+        converter.convert(
+            "{\"findings\":[{\"filePath\":\"%s\",\"severity\":\"MINOR\",\"message\":\"m\"}]}"
+                .formatted(PR1_PATH));
+    assertEquals(
+        FindingRejectReason.MISSING_FIELD,
+        VALIDATOR.validate(files, missingLine.findings()).rejected().get(0).reason());
+
+    LlmReview zeroLine =
+        converter.convert(
+            "{\"findings\":[{\"filePath\":\"%s\",\"line\":0,\"severity\":\"MINOR\",\"message\":\"m\"}]}"
+                .formatted(PR1_PATH));
+    assertEquals(
+        FindingRejectReason.ZERO_LINE,
+        VALIDATOR.validate(files, zeroLine.findings()).rejected().get(0).reason());
+  }
+
+  @Test
   void blankMessageIsRejectedAsMissingField() {
     Finding blankMessage = new Finding(PR1_PATH, 1, Severity.MINOR, "   ", null);
 

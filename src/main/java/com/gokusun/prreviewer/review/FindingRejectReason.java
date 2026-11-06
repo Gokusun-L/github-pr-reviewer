@@ -6,10 +6,9 @@ public enum FindingRejectReason {
   FILE_NOT_IN_DIFF,
 
   /**
-   * line == 0：AnnotatedLine 里"该侧不存在"的哨兵，说明模型指的是旧侧或根本没指。不纠正。
+   * line == 0：AnnotatedLine 里"该侧不存在"的哨兵，说明模型指的是旧侧或写了 0。不纠正。
    *
-   * <p>注意：模型整个没给 line 时，Jackson 对 {@code int} 的缺省值也是 0，同样落到这里 ——
-   * 值上分不开"漏字段"和"给了 0"。
+   * <p>模型没给 line 时是 null，落 {@link #MISSING_FIELD}，不进这里。
    */
   ZERO_LINE,
 
