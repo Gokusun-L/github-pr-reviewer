@@ -1,5 +1,7 @@
 package com.gokusun.prreviewer.review;
 
+import com.gokusun.prreviewer.diff.UnifiedDiffParser;
+import com.gokusun.prreviewer.github.GitHubClient;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.ai.converter.BeanOutputConverter;
@@ -59,6 +61,11 @@ public class ReviewConfig {
         validator,
         List.of(Duration.ofSeconds(1), Duration.ofSeconds(3)),
         ReviewConfig::sleepUninterruptibly);
+  }
+
+  @Bean
+  ReviewPipeline reviewPipeline(GitHubClient client, StructuredReviewService service) {
+    return new ReviewPipeline(client::pullDiff, new UnifiedDiffParser(), service);
   }
 
   private static void sleepUninterruptibly(Duration duration) {

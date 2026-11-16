@@ -1,6 +1,9 @@
 spring:
   application:
     name: pr-reviewer
+  main:
+    # 本进程只跑一次审查后退出，不需要内嵌 web 服务器
+    web-application-type: none
   config:
     # 把仓库根的 .env 按 properties 格式导入；文件缺失时不报错
     import: optional:file:.env[.properties]
