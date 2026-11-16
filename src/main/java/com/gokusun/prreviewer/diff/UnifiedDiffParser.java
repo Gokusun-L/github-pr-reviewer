@@ -19,35 +19,65 @@ public class UnifiedDiffParser {
     IN_HUNK
   }
 
+  /**
+   * 严格解析：任何一个文件坏掉都整体失败。
+   *
+   * @throws IllegalStateException 有文件解析失败时，消息里带每个失败文件的路径与原因
+   */
   public List<DiffFile> parse(String diffText) {
-    List<DiffFile> files = new ArrayList<>();
-    if (diffText == null || diffText.isBlank()) {
-      return files;
+    ParseReport report = parseReport(diffText);
+    if (!report.failures().isEmpty()) {
+      StringBuilder text = new StringBuilder("diff 解析失败：");
+      for (ParseFailure failure : report.failures()) {
+        text.append("\n  ").append(failure.path()).append(": ").append(failure.reason());
+      }
+      throw new IllegalStateException(text.toString());
     }
+    return report.files();
+  }
 
-    State state = State.OUTSIDE;
-    String oldPath = null;
-    String newPath = null;
-    boolean added = false;
-    boolean deleted = false;
-    boolean renamed = false;
-    List<Hunk> hunks = new ArrayList<>();
-    HunkDraft draft = null;
-
+  /**
+   * 宽松解析：坏文件单独记录，不影响其他文件。
+   *
+   * @return 成功文件与失败文件的合集；输入为空白时两者皆空
+   */
+  public ParseReport parseReport(String diffText) {
+    if (diffText == null || diffText.isBlank()) {
+      return new ParseReport(List.of(), List.of());
+    }
+    Pass pass = new Pass();
     for (String line : diffText.split("\n")) {
+      pass.accept(line);
+    }
+    pass.finishFile();
+    return pass.toReport();
+  }
+
+  /** 一次解析调用的可变状态容器；生命周期与 parseReport 的一次调用相同。 */
+  private static final class Pass {
+
+    private final List<DiffFile> files = new ArrayList<>();
+    private final List<ParseFailure> failures = new ArrayList<>();
+    private final List<Hunk> hunks = new ArrayList<>();
+
+    private State state = State.OUTSIDE;
+    private String oldPath;
+    private String newPath;
+    private boolean added;
+    private boolean deleted;
+    private boolean renamed;
+    private HunkDraft draft;
+    private boolean broken;
+    private String brokenReason;
+
+    private void accept(String line) {
       if (line.isEmpty()) {
-        continue;
+        return;
       }
 
       if (line.startsWith(DIFF_GIT)) {
-        if (draft != null) {
-          hunks.add(draft.toHunk());
-          draft = null;
-        }
-        if (state != State.OUTSIDE) {
-          files.add(new DiffFile(oldPath, newPath, kindOf(added, deleted, renamed), hunks));
-          hunks = new ArrayList<>();
-        }
+        flushHunk();
+        finishFile();
         String[] defaultPaths = pathsFromDiffGit(line.substring(DIFF_GIT.length()));
         oldPath = defaultPaths[0];
         newPath = defaultPaths[1];
@@ -55,46 +85,20 @@ public class UnifiedDiffParser {
         deleted = false;
         renamed = false;
         state = State.HEADER;
-        continue;
+        return;
       }
 
       if (state == State.OUTSIDE) {
-        continue;
+        return;
       }
 
       if (state == State.HEADER) {
-        if (line.startsWith("--- ")) {
-          oldPath = decodeGitPath(line.substring(4));
-          added = oldPath == null;
-          continue;
-        }
-        if (line.startsWith("+++ ")) {
-          newPath = decodeGitPath(line.substring(4));
-          deleted = newPath == null;
-          continue;
-        }
-        if (line.startsWith("new file mode ")) {
-          added = true;
-          continue;
-        }
-        if (line.startsWith("deleted file mode ")) {
-          deleted = true;
-          continue;
-        }
-        if (line.startsWith("rename from ") || line.startsWith("rename to ")) {
-          renamed = true;
-          continue;
-        }
-        Matcher matcher = HUNK_HEADER.matcher(line);
-        if (matcher.find()) {
-          draft = HunkDraft.of(matcher);
-          state = State.IN_HUNK;
-        }
-        continue;
+        acceptHeader(line);
+        return;
       }
 
       if (line.startsWith("@@")) {
-        hunks.add(draft.toHunk());
+        flushHunk();
         Matcher matcher = HUNK_HEADER.matcher(line);
         if (matcher.find()) {
           draft = HunkDraft.of(matcher);
@@ -102,30 +106,96 @@ public class UnifiedDiffParser {
           draft = null;
           state = State.HEADER;
         }
-        continue;
+        return;
       }
 
       if (line.charAt(0) == '\\') {
-        if (!draft.lines.isEmpty()) {
+        if (draft != null && !draft.lines.isEmpty()) {
           int last = draft.lines.size() - 1;
           draft.lines.set(last, draft.lines.get(last).withNoNewline());
         }
-        continue;
+        return;
       }
 
       LineType type = classify(line.charAt(0));
-      if (type != null) {
+      if (type != null && draft != null) {
         draft.lines.add(new DiffLine(type, line.substring(1)));
       }
     }
 
-    if (draft != null) {
-      hunks.add(draft.toHunk());
+    private void acceptHeader(String line) {
+      if (line.startsWith("--- ")) {
+        oldPath = decodeGitPath(line.substring(4));
+        added = oldPath == null;
+        return;
+      }
+      if (line.startsWith("+++ ")) {
+        newPath = decodeGitPath(line.substring(4));
+        deleted = newPath == null;
+        return;
+      }
+      if (line.startsWith("new file mode ")) {
+        added = true;
+        return;
+      }
+      if (line.startsWith("deleted file mode ")) {
+        deleted = true;
+        return;
+      }
+      if (line.startsWith("rename from ") || line.startsWith("rename to ")) {
+        renamed = true;
+        return;
+      }
+      Matcher matcher = HUNK_HEADER.matcher(line);
+      if (matcher.find()) {
+        draft = HunkDraft.of(matcher);
+        state = State.IN_HUNK;
+      }
     }
-    if (state != State.OUTSIDE) {
-      files.add(new DiffFile(oldPath, newPath, kindOf(added, deleted, renamed), hunks));
+
+    private void flushHunk() {
+      if (draft == null) {
+        return;
+      }
+      try {
+        hunks.add(draft.toHunk());
+      } catch (RuntimeException e) {
+        broken = true;
+        brokenReason = e.getMessage();
+      } finally {
+        draft = null;
+      }
     }
-    return files;
+
+    private void finishFile() {
+      if (state == State.OUTSIDE) {
+        return;
+      }
+      flushHunk();
+      if (broken) {
+        failures.add(new ParseFailure(displayPath(), brokenReason));
+      } else {
+        files.add(new DiffFile(oldPath, newPath, kindOf(added, deleted, renamed), hunks));
+      }
+      hunks.clear();
+      broken = false;
+      brokenReason = null;
+      state = State.OUTSIDE;
+    }
+
+    private String displayPath() {
+      if (newPath != null) {
+        return newPath;
+      }
+      if (oldPath != null) {
+        return oldPath;
+      }
+      return "(未知路径)";
+    }
+
+    private ParseReport toReport() {
+      return new ParseReport(files, failures);
+    }
   }
 
   private static FileKind kindOf(boolean added, boolean deleted, boolean renamed) {

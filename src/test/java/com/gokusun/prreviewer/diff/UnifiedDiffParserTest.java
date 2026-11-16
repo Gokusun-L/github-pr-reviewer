@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -357,6 +358,62 @@ class UnifiedDiffParserTest {
 
   private static long count(Hunk hunk, LineType type) {
     return hunk.lines().stream().filter(line -> line.type() == type).count();
+  }
+
+  @Test
+  void brokenHunkInOneFileDoesNotDiscardOtherFiles() {
+    String diff =
+        "diff --git a/A.java b/A.java\n"
+            + "index 1111111..2222222 100644\n"
+            + "--- a/A.java\n"
+            + "+++ b/A.java\n"
+            + "@@ -1,1 +1,2 @@\n"
+            + " class A {}\n"
+            + "+// x\n"
+            + "diff --git a/B.java b/B.java\n"
+            + "index 3333333..4444444 100644\n"
+            + "--- a/B.java\n"
+            + "+++ b/B.java\n"
+            + "@@ -1,99 +1,99 @@\n"
+            + "-a\n"
+            + "+b\n";
+
+    ParseReport report = new UnifiedDiffParser().parseReport(diff);
+
+    assertEquals(1, report.files().size());
+    assertEquals("A.java", report.files().get(0).newPath());
+    assertEquals(1, report.failures().size());
+    assertEquals("B.java", report.failures().get(0).path());
+    assertTrue(report.failures().get(0).reason().contains("hunk 计数不守恒"));
+  }
+
+  @Test
+  void nonGitPatchYieldsEmptyReportWithoutFailures() {
+    UnifiedDiffParser parser = new UnifiedDiffParser();
+
+    ParseReport report = parser.parseReport("hello world");
+
+    assertTrue(report.files().isEmpty());
+    assertTrue(report.failures().isEmpty());
+    assertTrue(parser.parse("hello world").isEmpty());
+  }
+
+  @Test
+  void parseThrowsWithPathWhenAnyFileIsBroken() {
+    String diff =
+        "diff --git a/A.java b/A.java\n"
+            + "index 1111111..2222222 100644\n"
+            + "--- a/A.java\n"
+            + "+++ b/A.java\n"
+            + "@@ -1,99 +1,99 @@\n"
+            + "-a\n"
+            + "+b\n";
+
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, () -> new UnifiedDiffParser().parse(diff));
+
+    assertTrue(error.getMessage().contains("A.java"));
+    assertTrue(error.getMessage().contains("hunk 计数不守恒"));
   }
 
   private static String read(String name) throws IOException {
