@@ -44,6 +44,9 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <jvmArguments>-Dstdout.encoding=UTF-8</jvmArguments>
+        </configuration>
       </plugin>
     </plugins>
   </build>
