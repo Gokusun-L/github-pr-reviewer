@@ -16,4 +16,14 @@ public record NewReviewComment(
     @JsonProperty("commit_id") String commitId,
     String path,
     int line,
-    String side) {}
+    String side) {
+
+  /** 行内评论唯一合法的 side 取值，表示新版本一侧。 */
+  public static final String SIDE_RIGHT = "RIGHT";
+
+  public NewReviewComment {
+    if (!SIDE_RIGHT.equals(side)) {
+      throw new IllegalArgumentException("side 只能是 " + SIDE_RIGHT + "，实际: " + side);
+    }
+  }
+}

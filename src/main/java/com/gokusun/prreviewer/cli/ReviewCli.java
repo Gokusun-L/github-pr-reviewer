@@ -1,6 +1,8 @@
 package com.gokusun.prreviewer.cli;
 
 import com.gokusun.prreviewer.diff.ParseFailure;
+import com.gokusun.prreviewer.github.CommentPublisher;
+import com.gokusun.prreviewer.github.PublishReport;
 import com.gokusun.prreviewer.review.Finding;
 import com.gokusun.prreviewer.review.PipelineResult;
 import com.gokusun.prreviewer.review.RejectedFinding;
@@ -27,9 +29,11 @@ public class ReviewCli implements ApplicationRunner {
   static final int CODE_INPUT_ERROR = 2;
 
   private final ReviewPipeline pipeline;
+  private final CommentPublisher publisher;
 
-  public ReviewCli(ReviewPipeline pipeline) {
+  public ReviewCli(ReviewPipeline pipeline, CommentPublisher publisher) {
     this.pipeline = pipeline;
+    this.publisher = publisher;
   }
 
   /** 执行审查；退出码非零时结束进程。 */
@@ -44,7 +48,8 @@ public class ReviewCli implements ApplicationRunner {
   /**
    * 执行一次审查并返回退出码。
    *
-   * @param args 启动参数；从 --owner / --repo / --pr 读取，缺省为 Gokusun-L / github-pr-reviewer / 1
+   * @param args 启动参数；从 --owner / --repo / --pr 读取，缺省为 Gokusun-L / github-pr-reviewer / 1；
+   *     带 --post 时把审查结果发成 PR 行内评论
    * @return 0 成功；1 审查失败；2 输入或环境错误
    */
   int execute(ApplicationArguments args) {
@@ -52,7 +57,12 @@ public class ReviewCli implements ApplicationRunner {
       String owner = option(args, "owner", "Gokusun-L");
       String repo = option(args, "repo", "github-pr-reviewer");
       int pr = parsePr(option(args, "pr", "1"));
-      print(pipeline.run(owner, repo, pr));
+      PipelineResult result = pipeline.run(owner, repo, pr);
+      print(result);
+      if (args.containsOption("post")) {
+        PublishReport report = publisher.publish(owner, repo, pr, result.review());
+        System.out.println("POSTED " + report.posted() + " FAILED " + report.failed());
+      }
       return CODE_OK;
     } catch (IllegalArgumentException e) {
       System.out.println("INPUT_ERROR " + e.getMessage());

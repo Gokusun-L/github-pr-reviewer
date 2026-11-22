@@ -3,6 +3,8 @@ package com.gokusun.prreviewer.cli;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.gokusun.prreviewer.diff.UnifiedDiffParser;
+import com.gokusun.prreviewer.github.CommentPublisher;
+import com.gokusun.prreviewer.github.PublishReport;
 import com.gokusun.prreviewer.review.FindingValidator;
 import com.gokusun.prreviewer.review.ReviewFailedException;
 import com.gokusun.prreviewer.review.ReviewFailureKind;
@@ -10,9 +12,11 @@ import com.gokusun.prreviewer.review.ReviewJson;
 import com.gokusun.prreviewer.review.ReviewModel;
 import com.gokusun.prreviewer.review.ReviewPipeline;
 import com.gokusun.prreviewer.review.ReviewPromptBuilder;
+import com.gokusun.prreviewer.review.ReviewResult;
 import com.gokusun.prreviewer.review.StructuredReviewService;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.DefaultApplicationArguments;
@@ -30,6 +34,14 @@ class ReviewCliTest {
           + "@@ -1,1 +1,2 @@\n"
           + " class A {}\n"
           + "+// x\n";
+
+  private static final CommentPublisher MUST_NOT_PUBLISH =
+      new CommentPublisher(null) {
+        @Override
+        public PublishReport publish(String owner, String repo, int number, ReviewResult review) {
+          throw new AssertionError("不带 --post 时不得发布评论");
+        }
+      };
 
   @Test
   void successReturnsZero() {
@@ -85,10 +97,37 @@ class ReviewCliTest {
     assertThat(code).isEqualTo(ReviewCli.CODE_INPUT_ERROR);
   }
 
+  @Test
+  void withoutPostOptionPublisherIsNotCalled() {
+    ReviewCli cli = cliFor(MINIMAL_DIFF);
+
+    int code = cli.execute(new DefaultApplicationArguments("--pr=1"));
+
+    // 未抛 AssertionError 即证明 publisher 一次都没被调用
+    assertThat(code).isZero();
+  }
+
+  @Test
+  void postOptionPublishesOnce() {
+    List<ReviewResult> seen = new ArrayList<>();
+    CommentPublisher recording =
+        new CommentPublisher(null) {
+          @Override
+          public PublishReport publish(String owner, String repo, int number, ReviewResult review) {
+            seen.add(review);
+            return new PublishReport(1, 0);
+          }
+        };
+    ReviewCli cli = new ReviewCli(pipelineFor(MINIMAL_DIFF), recording);
+
+    int code = cli.execute(new DefaultApplicationArguments("--pr=1", "--post"));
+
+    assertThat(code).isZero();
+    assertThat(seen).hasSize(1);
+  }
+
   private static ReviewCli cliFor(String diff) {
-    return new ReviewCli(
-        new ReviewPipeline(
-            (owner, repo, pr) -> diff, new UnifiedDiffParser(), reviewService("{\"findings\":[]}")));
+    return new ReviewCli(pipelineFor(diff), MUST_NOT_PUBLISH);
   }
 
   private static ReviewCli cliThatThrows(RuntimeException failure) {
@@ -98,7 +137,13 @@ class ReviewCliTest {
               throw failure;
             },
             new UnifiedDiffParser(),
-            reviewService("{\"findings\":[]}")));
+            reviewService("{\"findings\":[]}")),
+        MUST_NOT_PUBLISH);
+  }
+
+  private static ReviewPipeline pipelineFor(String diff) {
+    return new ReviewPipeline(
+        (owner, repo, pr) -> diff, new UnifiedDiffParser(), reviewService("{\"findings\":[]}"));
   }
 
   private static StructuredReviewService reviewService(String modelJson) {
