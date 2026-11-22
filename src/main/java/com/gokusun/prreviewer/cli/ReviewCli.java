@@ -62,6 +62,10 @@ public class ReviewCli implements ApplicationRunner {
       if (args.containsOption("post")) {
         PublishReport report = publisher.publish(owner, repo, pr, result.review());
         System.out.println("POSTED " + report.posted() + " FAILED " + report.failed());
+        for (PublishReport.Failure failure : report.failures()) {
+          System.out.println(
+              "  " + failure.path() + ":" + failure.line() + " status=" + failure.status());
+        }
       }
       return CODE_OK;
     } catch (IllegalArgumentException e) {

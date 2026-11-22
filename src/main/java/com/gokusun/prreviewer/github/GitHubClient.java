@@ -1,6 +1,7 @@
 package com.gokusun.prreviewer.github;
 
 import java.time.Duration;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -15,6 +16,7 @@ public class GitHubClient {
   private final RestClient diffHttp;
   private final RestClient jsonHttp;
 
+  @Autowired
   public GitHubClient(GitHubProperties props) {
     this(props, DEFAULT_BASE_URL);
   }

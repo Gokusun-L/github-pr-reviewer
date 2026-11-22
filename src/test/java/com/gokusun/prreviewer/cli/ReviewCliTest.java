@@ -115,7 +115,7 @@ class ReviewCliTest {
           @Override
           public PublishReport publish(String owner, String repo, int number, ReviewResult review) {
             seen.add(review);
-            return new PublishReport(1, 0);
+            return new PublishReport(1, List.of());
           }
         };
     ReviewCli cli = new ReviewCli(pipelineFor(MINIMAL_DIFF), recording);
