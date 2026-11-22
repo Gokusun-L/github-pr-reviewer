@@ -43,10 +43,6 @@ class CommentPublisherTest {
         .containsExactly(new PublishReport.Failure("A.java", 2, 422));
     assertThat(postHits.get()).isEqualTo(4);
     assertThat(pullHits.get()).isEqualTo(1);
-    System.out.println("POSTED " + report.posted() + " FAILED " + report.failed());
-    for (PublishReport.Failure failure : report.failures()) {
-      System.out.println("  " + failure.path() + ":" + failure.line() + " status=" + failure.status());
-    }
   }
 
   @Test

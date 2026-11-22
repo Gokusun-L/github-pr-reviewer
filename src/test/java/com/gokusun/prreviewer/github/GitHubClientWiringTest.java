@@ -13,10 +13,11 @@ class GitHubClientWiringTest {
       GitHubProperties props = new GitHubProperties();
       props.setToken("t");
       ctx.registerBean(GitHubProperties.class, () -> props);
-      ctx.register(GitHubClient.class);
+      ctx.register(GitHubClient.class, CommentPublisher.class);
       ctx.refresh();
 
       assertThat(ctx.getBean(GitHubClient.class)).isNotNull();
+      assertThat(ctx.getBean(CommentPublisher.class)).isNotNull();
     }
   }
 }
