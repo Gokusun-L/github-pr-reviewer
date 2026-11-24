@@ -72,6 +72,9 @@ public final class StructuredReviewService {
         kind = ReviewFailureKind.CALL_FAILED;
         rawSnippet = null;
         lastFailure = e;
+        if (!RetryDecision.retryable(e)) {
+          break;
+        }
         continue;
       }
 

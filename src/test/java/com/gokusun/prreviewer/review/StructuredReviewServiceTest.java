@@ -17,6 +17,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.retry.NonTransientAiException;
+import org.springframework.ai.retry.TransientAiException;
+import org.springframework.web.client.ResourceAccessException;
 
 class StructuredReviewServiceTest {
 
@@ -67,14 +70,39 @@ class StructuredReviewServiceTest {
 
   @Test
   void callFailureIsClassifiedAsCallFailed() throws IOException {
-    StubModel model = new StubModel(new RuntimeException("connection reset"));
+    StubModel model = new StubModel(new ResourceAccessException("Connection reset"));
 
     ReviewFailedException thrown =
         assertThrows(ReviewFailedException.class, () -> service(model, new RecordingSleeper()).review(parse("pr1.diff")));
 
     assertEquals(ReviewFailureKind.CALL_FAILED, thrown.kind());
     assertEquals(3, thrown.attempts(), "调用失败同样要按 3 次计");
+    assertEquals(3, model.calls, "网络异常属于瞬时失败，要真实重试 3 次");
     assertNull(thrown.rawSnippet(), "调用失败时没有原话可留");
+  }
+
+  @Test
+  void nonTransientFailureIsNotRetried() throws IOException {
+    StubModel model = new StubModel(new NonTransientAiException("401 - bad key"));
+
+    ReviewFailedException thrown =
+        assertThrows(ReviewFailedException.class, () -> service(model, new RecordingSleeper()).review(parse("pr1.diff")));
+
+    assertEquals(ReviewFailureKind.CALL_FAILED, thrown.kind());
+    assertEquals(1, thrown.attempts(), "确定性失败第一次就该停");
+    assertEquals(1, model.calls);
+  }
+
+  @Test
+  void transientFailureIsRetriedThreeTimes() throws IOException {
+    StubModel model = new StubModel(new TransientAiException("503 - upstream"));
+
+    ReviewFailedException thrown =
+        assertThrows(ReviewFailedException.class, () -> service(model, new RecordingSleeper()).review(parse("pr1.diff")));
+
+    assertEquals(ReviewFailureKind.CALL_FAILED, thrown.kind());
+    assertEquals(3, thrown.attempts(), "瞬时失败要按 3 次计");
+    assertEquals(3, model.calls);
   }
 
   @Test
