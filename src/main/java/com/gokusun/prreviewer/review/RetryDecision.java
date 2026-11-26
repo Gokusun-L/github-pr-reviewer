@@ -1,8 +1,10 @@
 package com.gokusun.prreviewer.review;
 
+import java.io.IOException;
 import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.ai.retry.TransientAiException;
 import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
@@ -18,8 +20,8 @@ public final class RetryDecision {
    * 判断该异常再试一次是否有意义。
    *
    * @param e 一次外呼抛出的异常；为 {@code null} 时按不可重试处理，不抛异常
-   * @return 瞬时失败（模型 5xx、网络中断、5xx 状态码）为 {@code true}；确定性失败（模型 4xx、
-   *     4xx 状态码、限流）与未知异常为 {@code false}
+   * @return 瞬时失败（模型 5xx、网络中断、5xx 状态码、读取响应时 IO 中断）为 {@code true}；确定性失败（模型
+   *     4xx、4xx 状态码、限流）与未知异常为 {@code false}
    */
   public static boolean retryable(Throwable e) {
     if (e instanceof TransientAiException) {
@@ -37,6 +39,9 @@ public final class RetryDecision {
         return false;
       }
       return response.getStatusCode().is5xxServerError();
+    }
+    if (e instanceof RestClientException && e.getCause() instanceof IOException) {
+      return true;
     }
     return false;
   }

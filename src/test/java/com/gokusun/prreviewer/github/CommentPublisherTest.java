@@ -40,9 +40,31 @@ class CommentPublisherTest {
     assertThat(report.posted()).isEqualTo(3);
     assertThat(report.failed()).isEqualTo(1);
     assertThat(report.failures())
-        .containsExactly(new PublishReport.Failure("A.java", 2, 422));
+        .containsExactly(new PublishReport.Failure("A.java", 2, 422, false));
     assertThat(postHits.get()).isEqualTo(4);
     assertThat(pullHits.get()).isEqualTo(1);
+  }
+
+  @Test
+  void serverErrorOnOneCommentIsMarkedRetryable() throws IOException {
+    server = startServer(1, 502, -1);
+
+    PublishReport report = publisherFor(server).publish("o", "r", 1, result(2, List.of()));
+
+    assertThat(report.posted()).isEqualTo(1);
+    assertThat(report.failures())
+        .containsExactly(new PublishReport.Failure("A.java", 1, 502, true));
+  }
+
+  @Test
+  void networkFailureOnOneCommentHasNoStatusAndIsRetryable() throws IOException {
+    server = startServer(0, 422, 2);
+
+    PublishReport report = publisherFor(server).publish("o", "r", 1, result(4, List.of()));
+
+    assertThat(report.posted()).isEqualTo(3);
+    assertThat(report.failures())
+        .containsExactly(new PublishReport.Failure("A.java", 2, null, true));
   }
 
   @Test
@@ -91,19 +113,35 @@ class CommentPublisherTest {
   }
 
   /**
-   * 假 API：同一路径按 Accept 与方法分支。
+   * 假 API：第 N 次 POST 返回 422，其余成功。
    *
    * @param rejectPostNumber 第几次 POST 返回 422；0 表示全部成功
    */
   private HttpServer startServer(int rejectPostNumber) throws IOException {
+    return startServer(rejectPostNumber, 422, -1);
+  }
+
+  /**
+   * 假 API：同一路径按 Accept 与方法分支。
+   *
+   * @param rejectPostNumber 第几次 POST 返回 rejectStatus；0 表示不拒绝
+   * @param rejectStatus     拒绝时返回的状态码
+   * @param dropPostNumber   第几次 POST 直接断开连接；-1 表示不断
+   */
+  private HttpServer startServer(int rejectPostNumber, int rejectStatus, int dropPostNumber)
+      throws IOException {
     HttpServer created = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     created.createContext(
         "/repos/o/r/pulls/1",
         exchange -> {
           if (exchange.getRequestURI().getPath().endsWith("/comments")) {
             int nth = postHits.incrementAndGet();
+            if (nth == dropPostNumber) {
+              exchange.close();
+              return;
+            }
             if (nth == rejectPostNumber) {
-              respond(exchange, 422, "application/json", "{\"message\":\"Validation Failed\"}");
+              respond(exchange, rejectStatus, "application/json", "{\"message\":\"Validation Failed\"}");
             } else {
               respond(exchange, 201, "application/json", "{\"id\":" + nth + "}");
             }

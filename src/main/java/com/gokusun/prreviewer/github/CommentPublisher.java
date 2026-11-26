@@ -1,10 +1,12 @@
 package com.gokusun.prreviewer.github;
 
 import com.gokusun.prreviewer.review.Finding;
+import com.gokusun.prreviewer.review.RetryDecision;
 import com.gokusun.prreviewer.review.ReviewResult;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 /** 把一次审查保留的发现逐条发成 PR 行内评论。 */
@@ -27,6 +29,7 @@ public class CommentPublisher {
    * @return 成功条数与失败明细
    * @throws org.springframework.web.client.RestClientResponseException 读 head SHA 失败时整批没有
    *     可用的 commit_id，异常向上抛
+   * @throws org.springframework.web.client.ResourceAccessException 读 head SHA 时连不上服务器，同上
    */
   public PublishReport publish(String owner, String repo, int number, ReviewResult review) {
     if (review.findings().isEmpty()) {
@@ -47,10 +50,14 @@ public class CommentPublisher {
       try {
         client.createReviewComment(owner, repo, number, comment);
         posted++;
-      } catch (RestClientResponseException e) {
+      } catch (RestClientException e) {
+        Integer status =
+            e instanceof RestClientResponseException response
+                ? response.getStatusCode().value()
+                : null;
         failures.add(
             new PublishReport.Failure(
-                finding.filePath(), finding.line(), e.getStatusCode().value()));
+                finding.filePath(), finding.line(), status, RetryDecision.retryable(e)));
       }
     }
     return new PublishReport(posted, failures);

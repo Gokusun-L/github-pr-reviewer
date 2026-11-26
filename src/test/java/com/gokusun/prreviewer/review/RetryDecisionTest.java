@@ -2,6 +2,7 @@ package com.gokusun.prreviewer.review;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.net.SocketException;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.ai.retry.TransientAiException;
@@ -11,6 +12,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.UnknownHttpStatusCodeException;
 
 class RetryDecisionTest {
@@ -78,6 +80,23 @@ class RetryDecisionTest {
             RetryDecision.retryable(
                 new UnknownHttpStatusCodeException(599, "unknown", HttpHeaders.EMPTY, null, null)))
         .isTrue();
+  }
+
+  @Test
+  void restClientFailureWithIoCauseIsRetryable() {
+    assertThat(
+            RetryDecision.retryable(
+                new RestClientException(
+                    "Error while extracting response", new SocketException("Connection reset"))))
+        .isTrue();
+  }
+
+  @Test
+  void restClientFailureWithNonIoCauseIsNotRetryable() {
+    assertThat(
+            RetryDecision.retryable(
+                new RestClientException("No converter for type", new IllegalStateException("boom"))))
+        .isFalse();
   }
 
   @Test
