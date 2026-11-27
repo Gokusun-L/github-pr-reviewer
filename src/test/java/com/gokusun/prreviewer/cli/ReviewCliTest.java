@@ -14,6 +14,7 @@ import com.gokusun.prreviewer.review.ReviewPipeline;
 import com.gokusun.prreviewer.review.ReviewPromptBuilder;
 import com.gokusun.prreviewer.review.ReviewResult;
 import com.gokusun.prreviewer.review.StructuredReviewService;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
 
 class ReviewCliTest {
 
@@ -91,6 +93,18 @@ class ReviewCliTest {
             new byte[0],
             StandardCharsets.UTF_8);
     ReviewCli cli = cliThatThrows(notFound);
+
+    int code = cli.execute(new DefaultApplicationArguments("--pr=1"));
+
+    assertThat(code).isEqualTo(ReviewCli.CODE_INPUT_ERROR);
+  }
+
+  @Test
+  void networkFailureReturnsTwo() {
+    ReviewCli cli =
+        cliThatThrows(
+            new RestClientException(
+                "Error while extracting response", new SocketException("Connection reset")));
 
     int code = cli.execute(new DefaultApplicationArguments("--pr=1"));
 

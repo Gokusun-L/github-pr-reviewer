@@ -13,6 +13,7 @@ import java.util.List;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 /** 单次审查的命令行入口。 */
@@ -77,6 +78,9 @@ public class ReviewCli implements ApplicationRunner {
     } catch (RestClientResponseException e) {
       System.out.println(
           "INPUT_ERROR status=" + e.getStatusCode().value() + " " + e.getStatusText());
+      return CODE_INPUT_ERROR;
+    } catch (RestClientException e) {
+      System.out.println("INPUT_ERROR NETWORK " + e.getMessage());
       return CODE_INPUT_ERROR;
     } catch (ReviewFailedException e) {
       System.out.println(
