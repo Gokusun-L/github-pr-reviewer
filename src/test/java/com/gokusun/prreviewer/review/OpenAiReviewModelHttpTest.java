@@ -67,7 +67,7 @@ class OpenAiReviewModelHttpTest {
             new ReviewPromptBuilder(20_000),
             new FindingValidator(),
             List.of(Duration.ofSeconds(1), Duration.ofSeconds(3)),
-            duration -> {});
+            duration -> true);
 
     ReviewFailedException thrown =
         assertThrows(ReviewFailedException.class, () -> service.review(parse("pr1.diff")));

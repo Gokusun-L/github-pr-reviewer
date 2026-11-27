@@ -60,8 +60,9 @@ public final class StructuredReviewService {
     int attempts = 0;
 
     for (int i = 0; i < MAX_ATTEMPTS; i++) {
-      if (i > 0) {
-        sleeper.sleep(backoff.get(i - 1));
+      if (i > 0 && !sleeper.sleep(backoff.get(i - 1))) {
+        throw new ReviewFailedException(
+            ReviewFailureKind.CALL_FAILED, attempts, null, "重试等待被中断", null);
       }
       attempts = i + 1;
 
@@ -113,9 +114,9 @@ public final class StructuredReviewService {
     return raw.length() <= RAW_SNIPPET_LENGTH ? raw : raw.substring(0, RAW_SNIPPET_LENGTH);
   }
 
-  /** 退避的注入口。测试传记录器，生产传 Thread::sleep 的包装。 */
+  /** 退避的注入口。睡满返回 true；被中断返回 false，中断标记由实现方保留。 */
   @FunctionalInterface
   public interface Sleeper {
-    void sleep(Duration duration);
+    boolean sleep(Duration duration);
   }
 }

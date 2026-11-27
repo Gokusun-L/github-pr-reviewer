@@ -14,6 +14,8 @@ import com.gokusun.prreviewer.review.ReviewPipeline;
 import com.gokusun.prreviewer.review.ReviewPromptBuilder;
 import com.gokusun.prreviewer.review.ReviewResult;
 import com.gokusun.prreviewer.review.StructuredReviewService;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -140,6 +142,31 @@ class ReviewCliTest {
     assertThat(seen).hasSize(1);
   }
 
+  @Test
+  void postReportPrintsNetworkForMissingStatusCode() {
+    CommentPublisher fixed =
+        new CommentPublisher(null) {
+          @Override
+          public PublishReport publish(String owner, String repo, int number, ReviewResult review) {
+            return new PublishReport(
+                0, List.of(new PublishReport.Failure("A.java", 1, null, true)));
+          }
+        };
+    ReviewCli cli = new ReviewCli(pipelineFor(MINIMAL_DIFF), fixed);
+    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+    PrintStream original = System.out;
+    System.setOut(new PrintStream(buffer, true, StandardCharsets.UTF_8));
+    int code;
+    try {
+      code = cli.execute(new DefaultApplicationArguments("--pr=1", "--post"));
+    } finally {
+      System.setOut(original);
+    }
+
+    assertThat(code).isZero();
+    assertThat(buffer.toString(StandardCharsets.UTF_8)).contains("A.java:1 status=NETWORK");
+  }
+
   private static ReviewCli cliFor(String diff) {
     return new ReviewCli(pipelineFor(diff), MUST_NOT_PUBLISH);
   }
@@ -168,6 +195,6 @@ class ReviewCliTest {
         new ReviewPromptBuilder(20_000),
         new FindingValidator(),
         List.of(Duration.ZERO, Duration.ZERO),
-        duration -> {});
+        duration -> true);
   }
 }

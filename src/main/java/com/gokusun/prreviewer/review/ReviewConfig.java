@@ -68,13 +68,13 @@ public class ReviewConfig {
     return new ReviewPipeline(client::pullDiff, new UnifiedDiffParser(), service);
   }
 
-  private static void sleepUninterruptibly(Duration duration) {
+  private static boolean sleepUninterruptibly(Duration duration) {
     try {
       Thread.sleep(duration.toMillis());
+      return true;
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new ReviewFailedException(
-          ReviewFailureKind.CALL_FAILED, 0, null, "重试等待被中断", e);
+      return false;
     }
   }
 }

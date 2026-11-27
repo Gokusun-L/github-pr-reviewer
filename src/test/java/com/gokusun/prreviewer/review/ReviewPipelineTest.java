@@ -86,7 +86,7 @@ class ReviewPipelineTest {
             new ReviewPromptBuilder(20_000),
             new FindingValidator(),
             List.of(Duration.ZERO, Duration.ZERO),
-            duration -> {});
+            duration -> true);
     return new ReviewPipeline((owner, repo, pr) -> diff, new UnifiedDiffParser(), service);
   }
 }

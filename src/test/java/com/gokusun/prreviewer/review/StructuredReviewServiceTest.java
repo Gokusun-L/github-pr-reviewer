@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.ai.retry.TransientAiException;
@@ -103,6 +104,22 @@ class StructuredReviewServiceTest {
     assertEquals(ReviewFailureKind.CALL_FAILED, thrown.kind());
     assertEquals(3, thrown.attempts(), "瞬时失败要按 3 次计");
     assertEquals(3, model.calls);
+  }
+
+  @Test
+  void interruptedBackoffReportsAttemptsAlreadyRan() throws IOException {
+    List<DiffFile> files = parse("pr1.diff");
+    StubModel model = new StubModel(new TransientAiException("503 - upstream"));
+    AtomicInteger sleeps = new AtomicInteger();
+    StructuredReviewService.Sleeper sleeper = duration -> sleeps.incrementAndGet() < 2;
+
+    ReviewFailedException thrown =
+        assertThrows(ReviewFailedException.class, () -> service(model, sleeper).review(files));
+
+    assertEquals(ReviewFailureKind.CALL_FAILED, thrown.kind());
+    assertEquals(2, thrown.attempts(), "中断发生在第 2 次退避前，此前已完成 2 轮");
+    assertEquals(2, model.calls);
+    assertNull(thrown.rawSnippet(), "等待被中断时没有模型原话");
   }
 
   @Test
@@ -240,8 +257,9 @@ class StructuredReviewServiceTest {
     private final List<Duration> slept = new ArrayList<>();
 
     @Override
-    public void sleep(Duration duration) {
+    public boolean sleep(Duration duration) {
       slept.add(duration);
+      return true;
     }
   }
 }

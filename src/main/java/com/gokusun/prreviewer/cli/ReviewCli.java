@@ -65,7 +65,12 @@ public class ReviewCli implements ApplicationRunner {
         System.out.println("POSTED " + report.posted() + " FAILED " + report.failed());
         for (PublishReport.Failure failure : report.failures()) {
           System.out.println(
-              "  " + failure.path() + ":" + failure.line() + " status=" + failure.status());
+              "  "
+                  + failure.path()
+                  + ":"
+                  + failure.line()
+                  + " status="
+                  + (failure.status() == null ? "NETWORK" : failure.status()));
         }
       }
       return CODE_OK;
